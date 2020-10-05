@@ -9,7 +9,7 @@ import os
 
 from islands import get_points
 
-from QuantumGraph.QuantumGraph import QuantumGraph
+from quantumgraph import QuantumGraph
 
 
 ####################

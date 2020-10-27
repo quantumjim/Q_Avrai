@@ -9,11 +9,6 @@ from ai import Governments
 
 from islands import get_points
 
-
-# get the parameters to define this instance of the game
-from params import *
-
-
 # tools for the player interface
 
 def setup():
@@ -58,12 +53,11 @@ class Parameters():
         self.years = years
         self.year = 0
 
-def save_game(params,world,graph,govs):
-    pickle.dump(params, open('current_save/params.p','wb'))
-    pickle.dump(world, open('current_save/world.p','wb'))
-    pickle.dump(graph, open('current_save/graph.p','wb'))
-    pickle.dump(govs, open('current_save/govs.p','wb'))
-    
+def save_game(params,world,graph,govs,folder='current_save',file=''):
+    pickle.dump(params, open(folder+'/params'+file+'.p','wb'))
+    pickle.dump(world, open(folder+'/world'+file+'.p','wb'))
+    pickle.dump(graph, open(folder+'/graph'+file+'.p','wb'))
+    pickle.dump(govs, open(folder+'/govs'+file+'.p','wb'))
     
 def load_game():
     params = pickle.load(open('current_save/params.p','rb'))
@@ -77,92 +71,93 @@ def delete_save():
     os.remove('current_save/world.p')
     os.remove('current_save/graph.p')
     os.remove('current_save/govs.p')
+
+def run_game(num_civs = 28, player = None, L = 100, years = 20, device = 'simulator', opponent = []):
     
-
-# load game if one is ongoing, set up a new one if not
-
-try:
-    
-    params,world,graph,govs = load_game()
-    
-except:
-    
-    folder = str(num_civs) +'_'+ device +'_'
-    if opponent:
-        folder += 'opponent_'
-    else:
-        folder += 'None_'
-    folder += str(int(time.time()))
-    os.mkdir('histories/'+folder)
-    
-    # set up the objects that run the simulation
-    params = Parameters(folder,player,opponent,years)
-    world = World(num_civs,L)
-    graph = QuantumGraph(num_civs,device=device)
-    govs = Governments(world,graph)
-
-    # place initial cities
-    points, coupling_map, half = get_points(L)
-    for civ in range(num_civs):
-        city = points[civ]
-        world.add_city(city,civ)
-        world.update()
-
-    save_game(params,world,graph,govs)
-
-
-# run the game
-while params.year < params.years:
-    
-    params,world,graph,govs = load_game()
-    
-    moves = {}
-    for civ in range(world.num_civs):
-                
-        # determine how many cities can be placed this turn
-        surplus = world.get_surplus(civ)
-
-        # work out which cities to place (or remove) and do it
-        for _ in range(surplus):
-                
-            # ai choses city to place
-            city,tactic,neighbour = govs.choose_city(civ)
-            if civ==params.player:
-                image = world.make_map(civ=civ)
-                advice = city
-                city = get_coord(image,advice,world)
-
-            # add new city
-            if city:
-                world.add_city(city,civ)
-                
+    # load game if one is ongoing
+    try:
+        params,world,graph,govs = load_game()
+    # otherwise, set a new one up using the supplied parameters
+    except:
+        folder = 'data/'+str(num_civs)+'_'+device+'_'
+        if opponent:
+            folder += 'opponent_'
         else:
-            for _ in range(-surplus):
-                
-                # ai choses city to remove
-                city,tactic,neighbour = govs.choose_city(civ,tactic='remove')
-                
-                # remove it
-                if city:
-                    world.remove_city(city)
-        
-        # record the move
-        moves[civ] = tactic,neighbour,city
-                    
-    # update the simulation
-    loss, gain, transfers = world.update()
-    govs.update(loss,gain,transfers)
-    
-    # save map
-    world.make_map().save('histories/'+params.folder+'/year_'+str(params.year)+'.png')
-    # save details of what happened this year
-    dump = {'moves':moves, 'transfers':transfers, 'area':world.area, 'opponent':params.opponent}
-    with open('histories/'+params.folder+'/data.txt', 'a') as file:
-        file.write(str(dump)+'\n')
-    # iterate year
-    params.year += 1
-    # save game objects as they will be at the beginning of next year
-    save_game(params,world,graph,govs)
+            folder += 'None_'
+        folder += str(int(time.time()))
+        os.mkdir(folder)
 
-# once it is over, delete the save
-delete_save()
+        # set up the objects that run the simulation
+        params = Parameters(folder,player,opponent,years)
+        world = World(num_civs,L)
+        graph = QuantumGraph(num_civs,device=device)
+        govs = Governments(world,graph)
+
+        # place initial cities
+        points, coupling_map, half = get_points(L)
+        for civ in range(num_civs):
+            city = points[civ]
+            world.add_city(city,civ)
+            world.update()
+
+        save_game(params,world,graph,govs)
+
+
+    # run the game
+    while params.year < params.years:
+
+        params,world,graph,govs = load_game()
+
+        moves = {}
+        for civ in range(world.num_civs):
+
+            # determine how many cities can be placed this turn
+            surplus = world.get_surplus(civ)
+
+            # work out which cities to place (or remove) and do it
+            for _ in range(surplus):
+
+                # ai choses city to place
+                city,tactic,neighbour = govs.choose_city(civ)
+                if civ==params.player:
+                    image = world.make_map(civ=civ)
+                    advice = city
+                    city = get_coord(image,advice,world)
+
+                # add new city
+                if city:
+                    world.add_city(city,civ)
+
+            else:
+                for _ in range(-surplus):
+
+                    # ai choses city to remove
+                    city,tactic,neighbour = govs.choose_city(civ,tactic='remove')
+
+                    # remove it
+                    if city:
+                        world.remove_city(city)
+
+            # record the move
+            moves[civ] = tactic,neighbour,city
+
+        # update the simulation
+        loss, gain, transfers = world.update()
+        govs.update(loss,gain,transfers)
+
+        # save map
+        world.make_map().save(params.folder+'/year_'+str(params.year)+'.png')
+        # save details of what happened this year
+        dump = {'moves':moves, 'transfers':transfers, 'area':world.area, 'opponent':params.opponent}
+        with open(params.folder+'/data.txt', 'a') as file:
+            file.write(str(dump)+'\n')
+        # iterate year
+        params.year += 1
+        # save game objects as they will be at the beginning of next year
+        save_game(params,world,graph,govs)
+        # also save a copy for posterity
+        save_game(params,world,graph,govs,folder=params.folder,file='_'+str(params.year))
+        
+
+    # once the game is over, delete the save
+    delete_save()

@@ -10,12 +10,6 @@ from ai import Governments
 from islands import get_points
 
 # tools for the player interface
-
-def setup():
-    text = 'The Gods commanded all nations to found new cities and expand.\n\n'\
-                +'By clever placement of our new cities, we can seek to gain an advantage over our neighbours. '\
-                +'Parliament will make suggestions, but it is up to you to decide!'
-    print(text)
     
 def get_coord(image, advice, world):
     
@@ -46,10 +40,10 @@ def get_coord(image, advice, world):
 # tools for saving and loading
 
 class Parameters():
-    def __init__(self,folder,player,opponent,years):
+    def __init__(self,folder,player,static,years):
         self.folder = folder
         self.player = player
-        self.opponent = opponent
+        self.static = static
         self.years = years
         self.year = 0
 
@@ -72,35 +66,38 @@ def delete_save():
     os.remove('current_save/graph.p')
     os.remove('current_save/govs.p')
 
-def run_game(num_civs = 28, player = None, L = 100, years = 20, device = 'simulator', opponent = []):
+    
+def run_game(num_civs=28, player=None, L=100, years=20, device='simulator', static=None, newgame=True):
     
     # load game if one is ongoing
-    try:
-        params,world,graph,govs = load_game()
-    # otherwise, set a new one up using the supplied parameters
-    except:
-        folder = 'data/'+str(num_civs)+'_'+device+'_'
-        if opponent:
-            folder += 'opponent_'
-        else:
-            folder += 'None_'
-        folder += str(int(time.time()))
+    if newgame:
+        
+        folder = 'data/'+str(num_civs)+'_'+device+'_'+str(static)+'_'+str(int(time.time()))
         os.mkdir(folder)
+        
+        points, coupling_map, half = get_points(L)
+        
+        if static in half:
+            static = half[static]
+        else:
+            static = []
 
         # set up the objects that run the simulation
-        params = Parameters(folder,player,opponent,years)
+        params = Parameters(folder,player,static,years)
         world = World(num_civs,L)
         graph = QuantumGraph(num_civs,device=device)
-        govs = Governments(world,graph)
+        govs = Governments(world,graph,static=static)
 
         # place initial cities
-        points, coupling_map, half = get_points(L)
+        
         for civ in range(num_civs):
             city = points[civ]
             world.add_city(city,civ)
             world.update()
 
         save_game(params,world,graph,govs)
+    else:
+        params,world,graph,govs = load_game()
 
 
     # run the game
@@ -148,15 +145,15 @@ def run_game(num_civs = 28, player = None, L = 100, years = 20, device = 'simula
         # save map
         world.make_map().save(params.folder+'/year_'+str(params.year)+'.png')
         # save details of what happened this year
-        dump = {'moves':moves, 'transfers':transfers, 'area':world.area, 'opponent':params.opponent}
+        dump = {'moves':moves, 'transfers':transfers, 'area':world.area, 'static':params.static}
         with open(params.folder+'/data.txt', 'a') as file:
             file.write(str(dump)+'\n')
+        save_game(params,world,graph,govs,folder=params.folder,file='_'+str(params.year))
         # iterate year
         params.year += 1
-        # save game objects as they will be at the beginning of next year
+        # save game objects as they will be at the beginning of next year to current save folder
         save_game(params,world,graph,govs)
-        # also save a copy for posterity
-        save_game(params,world,graph,govs,folder=params.folder,file='_'+str(params.year))
+
         
 
     # once the game is over, delete the save

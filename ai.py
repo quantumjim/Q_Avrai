@@ -3,10 +3,11 @@ from random import choice
 
 class Governments():
     
-    def __init__(self,world,graph):
+    def __init__(self,world,graph,static=[]):
         
         self.world = world
         self.graph = graph
+        self.static = static
 
     def choose_city(self,civ,tactic=None):
 
@@ -174,27 +175,39 @@ class Governments():
         graph = self.graph
         
         for civ in range(world.num_civs):
+            # if a civ has lost a city
             if civ in transfers:
-                # set losing civ to max defense
-                graph.set_bloch({'X':1,'Y':0,'Z':0}, civ, update=False)
+                # unless it is a static civ, set it to max defense
+                if civ not in self.static:
+                    graph.set_bloch({'X':1,'Y':0,'Z':0}, civ, update=False)
                 pair = [civ,transfers[civ]]
-                if pair in graph.coupling_map or pair[::-1] in graph.coupling_map:
-                    # as much as possible, set up a <XZ>=<ZX>=1 state between loser and winner
-                    graph.set_bloch({'X':1,'Y':0,'Z':0}, transfers[civ], update=False)
-                    graph.qc.cz(transfers[civ],civ)
+                # if either the loser or winner is not static
+                if pair[0] not in self.static or pair[1] not in self.static:
+                    # and if they are connected by the coupling map
+                    if pair in graph.coupling_map or pair[::-1] in graph.coupling_map:
+                        # as much as possible, set up a <XZ>=<ZX>=1 state between loser and winner
+                        graph.set_relationship({'XZ':+1,'ZX':+1},civ,transfers[civ])
                     
-                    
+            # otherwise change state based on territory transfers        
             else:
-                if None in world.border[civ]:
-                    frontier = len(world.border[civ][None])
-                else:
-                    frontier = 0
-                if frontier>(loss[civ]+gain[civ]): # when frontiers are dominant, increase exploration
-                    graph.set_bloch({'X':0,'Y':1,'Z':0}, civ, fraction=1/4, update=False)
-                else:
-                    if loss[civ]>gain[civ]:  # when losses are dominant, increase defense
-                        graph.set_bloch({'X':1,'Y':0,'Z':0}, civ, fraction=min(1, loss[civ]/(np.pi*world.r**2)), update=False)
-                    else: # when gains are dominant, increase aggression
-                        graph.set_bloch({'X':0,'Y':0,'Z':1}, civ, fraction=min(1, loss[civ]/(np.pi*world.r**2)), update=False)
+                # only do anything if the civ is not static
+                if civ not in self.static:
+                    if None in world.border[civ]:
+                        frontier = len(world.border[civ][None])
+                    else:
+                        frontier = 0
+                    # when frontiers are dominant, increase exploration
+                    if frontier>(loss[civ]+gain[civ]): 
+                        graph.set_bloch({'X':0,'Y':1,'Z':0}, civ, fraction=1/4, update=False)
+                    else:
+                        # when losses are dominant, increase defense
+                        if loss[civ]>gain[civ]:
+                            state = {'X':1,'Y':0,'Z':0}
+                            fraction = loss[civ]/(np.pi*world.r**2)
+                        # when gains are dominant, increase aggression
+                        else:
+                            state = {'X':1,'Y':0,'Z':0}
+                            fraction = gain[civ]/(np.pi*world.r**2)
+                        graph.set_bloch(state, civ, fraction=fraction, update=False)
     
         graph.update_tomography()

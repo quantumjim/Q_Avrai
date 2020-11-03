@@ -8,6 +8,10 @@ class Governments():
         self.world = world
         self.graph = graph
         self.static = static
+        
+        for civ in range(world.num_civs):
+            graph.set_bloch({'X':1,'Y':1,'Z':1}, civ, update=False)
+        graph.update_tomography()
 
     def choose_city(self,civ,tactic=None):
 
@@ -78,7 +82,7 @@ class Governments():
                 # look at all points along the civ's border with neighbour
                 for pos in world.border[civ][neighbour]:
                     # for valid places to put a city
-                    if (pos not in world.city_owners) and (pos not in world.ruins):
+                    if (self.world.height[pos]!=0) and (pos not in world.city_owners) and (pos not in world.ruins):
                         # find points of the civ's minimum influence and record them
                         if civ in world.influence[pos]:
                             inf = world.influence[pos][civ]
@@ -90,6 +94,7 @@ class Governments():
                             min_city = [pos]
                         elif inf==minf:
                             min_city.append(pos)
+
                 # choose new city location from this list
                 if min_city:
                     city = choice(min_city)
@@ -108,14 +113,14 @@ class Governments():
                 # look at all points along the civ's border with neighbour
                 for pos in world.border[civ][neighbour]:
                     # for valid places to put a city
-                    if (pos not in world.city_owners) and (pos not in world.ruins):
+                    if (self.world.height[pos]!=0) and (pos not in world.city_owners) and (pos not in world.ruins):
                         # find points of the neighbour's maximum influence and record them
-                        # points at which the civ's own influence is double that of the
+                        # points at which the civ's own influence is at least that of the
                         # neighbour are not included
-                        if neighbour in world.influence[pos]:
+                        if neighbour in world.influence[pos] and civ in world.influence[pos]:
                             inf = world.influence[pos][neighbour]
                             own_inf = world.influence[pos][civ]
-                            if inf>maxf and inf<=own_inf/2:
+                            if inf>maxf and inf<=own_inf:
                                 maxf = inf
                                 max_city = [pos]
                             elif inf==maxf:
@@ -146,7 +151,7 @@ class Governments():
             border = []
             for neighbour in world.border[civ]:
                 for pos in world.border[civ][neighbour]:
-                    if (pos not in world.city_owners) and (pos not in world.ruins):
+                    if (self.world.height[pos]!=0) and (pos not in world.city_owners) and (pos not in world.ruins):
                         border.append(pos)
             if border:
                 city = choice(border)
@@ -154,7 +159,7 @@ class Governments():
                 # then try a random position from the whole nation
                 nation = []
                 for pos in world.owner:
-                    if (world.owner[pos]==civ) and (pos not in world.city_owners) and (pos not in world.ruins):
+                    if (self.world.height[pos]!=0) and (world.owner[pos]==civ) and (pos not in world.city_owners) and (pos not in world.ruins):
                         nation.append(pos)
                 if nation:
                     city = choice(nation) 
@@ -186,7 +191,7 @@ class Governments():
                     # and if they are connected by the coupling map
                     if pair in graph.coupling_map or pair[::-1] in graph.coupling_map:
                         # as much as possible, set up a <XZ>=<ZX>=1 state between loser and winner
-                        graph.set_relationship({'XZ':+1,'ZX':+1},civ,transfers[civ])
+                        graph.set_relationship({'XZ':+1,'ZX':+1},civ,transfers[civ],fraction=1/2)
                     
             # otherwise change state based on territory transfers        
             else:
@@ -197,8 +202,9 @@ class Governments():
                     else:
                         frontier = 0
                     # when frontiers are dominant, increase exploration
-                    if frontier>(loss[civ]+gain[civ]): 
-                        graph.set_bloch({'X':0,'Y':1,'Z':0}, civ, fraction=1/4, update=False)
+                    if frontier>(loss[civ]+gain[civ]):
+                        state = {'X':0,'Y':1,'Z':0}
+                        fraction = 1/2
                     else:
                         # when losses are dominant, increase defense
                         if loss[civ]>gain[civ]:
@@ -206,8 +212,8 @@ class Governments():
                             fraction = loss[civ]/(np.pi*world.r**2)
                         # when gains are dominant, increase aggression
                         else:
-                            state = {'X':1,'Y':0,'Z':0}
+                            state = {'X':0,'Y':0,'Z':1}
                             fraction = gain[civ]/(np.pi*world.r**2)
-                        graph.set_bloch(state, civ, fraction=fraction, update=False)
+                    graph.set_bloch(state, civ, fraction=fraction, update=False)
     
         graph.update_tomography()

@@ -67,26 +67,24 @@ def delete_save():
     os.remove('current_save/govs.p')
 
     
-def run_game(num_civs=28, player=None, L=100, years=20, device='simulator', static=None, newgame=True):
+def run_game(num_civs=28, player=None, L=100, years=20, device='simulator', static=0, newgame=True, theta=0):
     
     # load game if one is ongoing
     if newgame:
         
-        folder = 'data/'+str(num_civs)+'_'+device+'_'+str(static)+'_'+str(int(time.time()))
+        try:
+            folder = 'data/'+str(num_civs)+'_'+device+'_'+str(static)+'_'+str(int(time.time()))
+        except:
+            folder = 'data/'+str(num_civs)+'_?_'+str(static)+'_'+str(int(time.time()))
         os.mkdir(folder)
         
-        points, coupling_map, half = get_points(L)
+        points, coupling_map, partition, height = get_points(L,num_civs,theta=theta)
         
-        if static in half:
-            static = half[static]
-        else:
-            static = []
-
         # set up the objects that run the simulation
-        params = Parameters(folder,player,static,years)
-        world = World(num_civs,L)
+        params = Parameters(folder,player,partition[static],years)
+        world = World(num_civs,L,height=height)
         graph = QuantumGraph(num_civs,device=device)
-        govs = Governments(world,graph,static=static)
+        govs = Governments(world,graph,partition[static])
 
         # place initial cities
         
@@ -102,8 +100,6 @@ def run_game(num_civs=28, player=None, L=100, years=20, device='simulator', stat
 
     # run the game
     while params.year < params.years:
-
-        params,world,graph,govs = load_game()
 
         moves = {}
         for civ in range(world.num_civs):

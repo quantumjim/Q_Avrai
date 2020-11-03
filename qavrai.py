@@ -10,11 +10,19 @@ import matplotlib.image as img
 
 class World():
     
-    def __init__(self,num_civs,L,r=5):
+    def __init__(self,num_civs,L,r=5,height=None):
         
         self.L = L
         self.r = r
         self.num_civs = num_civs
+        
+        if height:
+            self.height = height
+        else:
+            self.height = {}
+            for x in range(L):
+                for y in range(L):
+                    self.height[x,y] = 1
         
         # for each point on the map:
         # * which civ owns it
@@ -46,6 +54,11 @@ class World():
             self.colors.append(tuple(rgb))
             rgb = [round(255*j) for j in colorsys.hsv_to_rgb(hue,1,2/3)]
             self.city_colors.append(tuple(rgb))
+        if num_civs%3==0:
+            new_colors = [None]*num_civs
+            for j,color in enumerate(self.colors):
+                new_colors[9*(j%3)+int(j/3)] = color
+            self.colors = new_colors
             
         
     def _get_influence(self,d):
@@ -65,26 +78,27 @@ class World():
         else:
             self.cities[civ].append(city)
             self.city_owners[city] = civ
-        # loop over all points within twice the radius
+        # loop over all points within twice the radius with non-zero height
         for dx in range(-2*self.r,2*self.r+1):
             for dy in range(-2*self.r,2*self.r+1):
                 (xx,yy) = (x+dx,y+dy)
                 d = np.sqrt(dx**2+dy**2)
-                if d<2*self.r:
-                    # determine the influence
-                    inf = self._get_influence(d)
-                    if (xx,yy) in self.influence:
-                        # add (or remove) the influence for the new city
-                        if civ in self.influence[xx,yy]:
-                            if remove:
-                                self.influence[xx,yy][civ] -= inf
-                                if self.influence[xx,yy][civ]<=0:
-                                    while civ in self.influence[xx,yy]:
-                                        self.influence[xx,yy].pop(civ)
+                if d<2*self.r and (xx,yy) in self.height:
+                    if self.height[xx,yy]!=0:
+                        # determine the influence
+                        inf = self._get_influence(d)
+                        if (xx,yy) in self.influence:
+                            # add (or remove) the influence for the new city
+                            if civ in self.influence[xx,yy]:
+                                if remove:
+                                    self.influence[xx,yy][civ] -= inf
+                                    if self.influence[xx,yy][civ]<=0:
+                                        while civ in self.influence[xx,yy]:
+                                            self.influence[xx,yy].pop(civ)
+                                else:
+                                    self.influence[xx,yy][civ] += inf
                             else:
-                                self.influence[xx,yy][civ] += inf
-                        else:
-                            self.influence[xx,yy][civ] = inf
+                                self.influence[xx,yy][civ] = inf
                             
     def remove_city(self,city):
         # runs `add_city` for `remove=True`
@@ -171,15 +185,16 @@ class World():
         for x in range(self.L):
             for y in range(self.L):
                 if (x,y) in self.owner:
-                    if self.owner[x,y]!=None:
-                        if (x,y) in self.cities[self.owner[x,y]]:
-                            worldmap.putpixel((x,y),self.city_colors[self.owner[x,y]])
-                        else:
-                            worldmap.putpixel((x,y),self.colors[self.owner[x,y]])
+                    if self.height[x,y]==0:
+                        worldmap.putpixel((x,y),(114,160,193))
                     else:
-                        worldmap.putpixel((x,y),(192,192,192))
-                else:
-                    worldmap.putpixel((x,y),(255,255,255))
+                        if self.owner[x,y]!=None:
+                            if (x,y) in self.cities[self.owner[x,y]]:
+                                worldmap.putpixel((x,y),self.city_colors[self.owner[x,y]])
+                            else:
+                                worldmap.putpixel((x,y),self.colors[self.owner[x,y]])
+                        else:
+                            worldmap.putpixel((x,y),(192,192,192))
                     
         if civ!=None:
 
